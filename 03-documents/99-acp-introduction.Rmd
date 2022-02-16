@@ -1,0 +1,547 @@
+---
+title: "99-ACP"
+author: "Euler Alencar"
+date: "04/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+
+require(tidyverse)
+```
+
+# Análise de Componentes Principais
+
+O objetivo deste artigo é criar uma análise de componentes principais (ACP) na mão e comparar com os principais pacotes. Ao final queremos estimar uma Análise Fatorial a partir de uma ACP.
+
+## Teoria
+
+Seja $X = (X_1, X_2, ... , X_p)'$ (observe que X já é uma transposta) um vetor aleatório com vetor de médias $\mu = (\mu_1, \mu_2, ..., \mu_p)$ e matriz de covariância $\Sigma_{pxp}$. Sejam $\lambda_1 >= \lambda_2, ...>= \lambda_p$ os respectivos autovalores da matriz $\Sigma_{pxp}$, com os respectivos autovetores normalizados $e_1, e_2, ... , e_p$.
+
+Os autovalores satisfazem a seguinte condição:
+
+1.  $e_i^{'} e_j$ = 0, para todo i $\ne$ j
+2.  $e_i^{'} e_i$ = 1, para todo i = 1, 2, ..., p;
+3.  $\Sigma_{pxp} e_i = \lambda e_i$, para todo i = 1,2,..., p.
+
+O vetor X é nosso dataframe e este possuí para cada coluna de dados uma determinada média. Quando rodamos a covariância, a matriz terá seus autovalores ($\lambda$) e autovetores ($e_i$) associados, que respeitam as condições acima.
+
+Considere o vetor aleatório Y = O'X, em que $O_{pxp}$ é a matriz ortogonal de dimensão pxp, constituída dos autovetores normalizados da matriz $\Sigma_{pxp}$. 
+
+$$O_{pxp} = 
+\begin{bmatrix}
+e_{11} & e_{12} & ... & e_{1p} \\
+e_{21} & e_{22} & ... & e_{2p} \\
+...    &  ...   &...  & ...    \\
+e_{p1} & e_{p2} & ... & e_{pp} 
+\end{bmatrix}  = [e_1 e_2 ... e_p]$$
+
+O vetor Y é comporto de p combinações lineares das variáveis aleatórios do vetor X, tem valor de médias iguais a O' $\mu$ e matriz de covariância $\Lambda_{pxp}$, que é uma matriz diagonal com os elementos iguais aos autovalores.
+
+$$\Lambda_{pxp} = 
+\begin{bmatrix}
+\lambda_{1} & 0           & ... & 0  \\
+0           & \lambda_{2} & ... & 0  \\
+...         &  ...        &...  & ...\\
+0           & 0           & ... & \lambda_{p} 
+\end{bmatrix}$$
+
+Assim, as variáveis aleatórias que constituem o vetor Y são não correlacionadas entre si. Dessa forma, surge a ideia de utilizar a combinação linear de Y como uma forma alternativa de representar a estrutura de variância e covariância do vetor X.
+
+Essa abordagem permite, por exemplo, obter uma redução do espaço de variáveis, passando da dimensão `p` para uma dimensão `k`, tal que k > p. 
+
+Portanto, ao invés de se utilizar o vetor aleatório original na análise de dados, utiliza-se as k combinações lineares principais. 
+
+Os vetores aleatórios, X e Y, têm a mesma variância total e a mesma variância generalizada. sendo que o vetor Y tem a vantagem de ser composto por variáveis aleatórias não correlacionadas, facilitando, portanto, na interpretação conjunta dessas. 
+
+Geometricamente, essas combinações lineares representam a seleção de novos eixos coordenados, os quais são obtidos por rotações do sistema de eixos original, representados por $X_1,··· ,X_p$ . Os novos eixos
+representam as direções de máxima variabilidade.
+
+Algumas definições seguem dessa abordagem:
+
+Definição 1. A j-ésima componente principal da matriz Sigma, j = 1, 2, ..., p, é definida como:
+
+$Y_j = e_j' X = e_{j1} X_1 + e_{j2} X_2 + ... + e_{j2} X_j$
+
+Segue, que a esperança e variância da componente $Y_j$ são respectivamente:
+
+a. $E[Y_j] = e_j' X =  e_{j1} \mu_1 + e_{j2} \mu_2 + ... + e_{j2} \mu_j$
+
+b. $Var[Y_j] = e_j' \Sigma_{pxp} e_j' = \lambda_j$
+
+O resultado da variância está ligado com fato do vetor Y ser de variáveis aleatórias não correlacionas, isto é, $Cov(Y_j, Y_k)$ = 0, j$\ne$k.
+
+Definição 2. A proporção da variância total de X que é explicada pela j-ésima componente principal é definida como:
+
+$$
+\frac{Var[Y_j]}{Variância Total de X} = \frac{\lambda_j}{Traço(\Sigma_{pxp})} = \frac{\lambda_j}{\sum_{i=1}^{p}\lambda_i}
+$$
+Isso resulta do [teorema da decomposição espectral](https://www.ime.usp.br/~afisher/ps/MAT2116/Books/PoolePortuguesCap5_5.pdf). As variâncias total e generalizada do vetor X podem ser descritas através da variância total e generalizada do vetor Y, uma vez que:
+
+a. A variância total da ACP é igual a variância total do vetor de variáveis originais em que $\sigma_{ii}$ = Var[$X_i$], i = 1,2,..., p.
+
+$$
+traço(\Lambda_{pxp}) = traço(\Sigma_{pxp}) = \sum_{i=1}^{p}\sigma_i = \sum_{i=1}^{p}\lambda_i
+$$
+
+
+
+b. A variancia generalizada do vetor de componetes principais é igual a variância generalizada do vetor de variàveis originárias:
+
+$$
+|\Sigma_{pxp}| = \prod_{i=1}^{j} \lambda_i = |\Lambda_{pxp}|
+$$
+No exemplo vamos testar essas definições.
+
+O que será realizado é redução de dimensão de `p` para `k` de tal forma que tenhamos uma aproximação da matriz de covariância dos dados $|\Sigma_{pxp}|$, sendo:
+
+$$
+\Sigma_{pxp} = \sum_{j=1}^{k}\lambda_j e_j e_j'
+$$
+
+Originalmente, cada parcela da soma acima envolve uma matriz de dimensão pxp correspondente apenas à informação da j-ésima componentes principal. O sistema de variabilidade original do vetor X estará sendo aproximado pela soma das k matrizes. É importante notar que tal procedimento representa apenas o sistema de variabilidade em uma dimensão diferente, com novas propriedades. Ao diminuir de `p` para `k` o que se faz é aproximar X pelas soma de k matrizes, cada uma representando o sistema de variabilidade relacionado a sua respectiva componente.
+
+
+## APC com prcomp()
+
+Vamos utilizar o pacote `iris` para nossa análise. Esse dataset de clássico e muito utilizado para ensinar como funciona modelos de classificação. A partir de várias medidas da flor Iris, o objetivo é classificar (definir a classe / rótulo) de qual é o tipo dessa flor, entre três tipos possíveis: Versicolor, Setosa e Virginica.
+
+Como o objetivo é rodar uma ACP, precisamos de uma dataframe númerico, por isso ser´excluída a última coluna.
+
+```{r}
+# Dados -------
+head(iris)
+
+# Vamos retirar a coluna 5 que é quantitativa.
+df <- iris[,-5]
+```
+
+
+### Etapas do processamento
+
+```{r}
+#df.pca <- prcomp(df.scaled, scale = TRUE); df.pca #original
+df.pca <- prcomp(df, scale. = TRUE); df.pca
+```
+
+
+```{r}
+# Componentes
+e.prcomp <- df.pca$rotation; e.prcomp
+```
+
+
+```{r}
+# Autovalores
+lambda.prcomp <- df.pca$sdev; lambda.prcomp
+```
+
+
+
+```{r}
+# Calculo da variancia explicada por cada componente no PRCOMP
+var.prcomp <- df.pca$sdev^2 / sum(df.pca$sdev^2); var.prcomp
+```
+
+
+Dos resultados podemos observar o seguinte:
+
+-   O primeiro componente principal explica 73% da variância total no conjunto de dados.
+
+-   O segundo componente principal explica 22,8% da variância total no conjunto de dados.
+
+-   O terceiro componente principal explica 3,6% da variância total no conjunto de dados.
+
+-   O quarto componente principal explica menos de 1% da variância total no conjunto de dados.
+
+### Graficamente
+
+
+```{r}
+#create scree plot
+qplot(c(1:4), var.prcomp) + 
+  geom_line() + 
+  xlab("Principal Component") + 
+  ylab("Variance Explained") +
+  ggtitle("Scree Plot - Variance Explained vs. Principal Component") +
+  ylim(0, 1)
+```
+
+
+```{r}
+biplot(df.pca, scale = 0, main = 'Plot PC1 vs. PC2')
+```
+
+
+## APC com matriz
+
+Podemos normalizar nosso dataframe. A função [`scale(x)`](http://www.leg.ufpr.br/~walmes/cursoR/guia_rapido_R.pdf) padroniza um vetor/matriz subtraindo os valores de sua média e dividindo pelo desvio padrão. Seria usado o seguindo código.
+
+```{r eval=FALSE, include=TRUE}
+df.scaled <- scale(df, center = TRUE, scale = TRUE)
+```
+
+No lugar disso, vamos usar a matriz de correlação diretamente:
+
+```{r}
+res.cor <- cor(df)
+```
+
+```{r}
+# Autovetores e autovetores
+res.eig <- eigen(res.cor)
+```
+
+Vamos obter os valores os respectivos autovetores normalizados $e_1, e_2, ... , e_p$. Eles possuem os parâmetros da nossa transformação.
+
+```{r}
+# Autovetor
+e.manual = res.eig$vectors; e.manual
+```
+
+Aqui vamos obter os autovalores $\lambda_i$´s.
+
+```{r}
+# Autovalor
+lambda.manual = res.eig$values; lambda.manual
+```
+
+Vetor com a variância explicada por cada componente.
+
+```{r}
+# Variancia total
+var.manual <- res.eig$values/sum(res.eig$values); var.manual
+```
+
+Agora vamos obter a matriz de loadings que será confrontada com Análise Fatorial, que será explica logo abaixo:
+
+```{r}
+# Obterndo a matriz de Loadings
+k = 2
+# Obtendo L
+L.hat = t(t(res.eig$vectors[,1:2]) * sqrt(res.eig$values[1:2])); L.hat
+```
+
+Podemos obter também da seguinte forma:
+
+```{r}
+# Criando a matriz de lambdas
+D <- matrix(0, k, k)
+diag(D) <- res.eig$values[1:2]
+
+# Criando a matriz de loadings
+L.hat2 = as.matrix(res.eig$vectors[,1:2]) %*% sqrt(D); L.hat2
+```
+
+Comunalidades:
+```{r}
+# Criando as comunalidades
+h2 <- rowSums(L.hat^2); h2
+```
+Uniqueness:
+```{r}
+# Criando uniques
+u2 <- 1 - h2; u2
+```
+
+Para obter $Y_j = e_j' X = e_{j1} X_1 + e_{j2} X_2 + ... + e_{j2} X_j$, vamos realizar a multiplicação matricial $e_j' X$. Lembre-se que X, por definição, é uma transposta do data.frame. Assim:
+
+```{r}
+# Transpose eigeinvectors
+e.manual_t <- t(e.manual); e.manual_t
+
+```
+
+Multiplicamos pelo dataframe original. Considerando que cada componente é $Y_j = e_j'  X$, vamos calcular nossas componentes:
+
+```{r}
+# The new dataset: componentes
+Y <- e.manual_t %*% t(df) 
+
+# Transpose new data ad rename columns
+Y <- t(Y)
+colnames(Y) <- c("PC1", "PC2", "PC3", "PC4")
+head(Y)
+```
+O erro é dado por:
+
+```{r}
+# residual
+Psi <- diag(u2)
+S <- res.cor
+
+# Original
+# Sigma <- L.hat %*% t(L.hat) + Psi
+# 
+Sigma <- L.hat %*% t(L.hat)
+
+MRES <- round(S - Sigma, 6); MRES
+```
+
+
+## ACP para estimar uma Análise Fatorial
+
+É importante começar explicando que Análise de Componentes Principais (ACP) é diferente de Análise Fatorial Exploratória (AFE). As técnicas não se confudem, embora tenham objetivos bastante semelhantes. Contudo a modelagem das duas técnicas são diferentes e precisam ser diferenciadas. 
+
+### Estimação da ACP
+
+A modelagem do ACP é buscando a matriz ortogonal $O_{pxp}$ que satisfaça o vetor aleatório Y = O'X. Basicamente, esperamos estimar o vetor Y que é uma combinação aleatória dos vetores aleatórios $X_i$, i = 1,...,p.
+
+### Estimação da AFE
+
+Seja um variável aleatória Z, que é uma variável padronizada de X, e segue o seguinte modelo:
+
+$Z = LF + \epsilon$
+
+Sendo a $F_{m,l}$ um vetor aleatório contendo `m`fatores, também chamados de variáveis latentes, que descrevem elementos da população que não podem ser observados, isto é, não podem ser medidos diretamente.
+
+Portanto o modelo assum que a variável Z está relacionada linearmente com as variáveis aleatórias F que necessitam ser estimadas de alguma maneira. 
+
+A matriz $L_{p,m}$ que é uma matriz de parâmetros constantes, que basicamente são coeficientes $l_{ij}$, chamados de loadings. São os coeficientes da variável padronizada $Z_i$ aplicadas no j-ésimo fator $F_j$ e representa o grau de relacionamento entre $Z_i$ e $F_j$
+L é uma matriz `pxm`.
+
+Sendo assim, o objetivo da análise fatorial é identificar as novas `m` novas variáveis, interpretá-las e calcular seus escores como foi feito na análise de componentes principais. 
+
+Observe que na ACP há uma relação direta entre e Y e as variáveis observáveis X. Na AFE estamos calculando fatores F, que não são observáveis e não possuem interpretação a priori.
+
+#### Modelo de fatores Ortogonais
+
+Algumas suposições são necessárias para que se possa operacionalizar a estimação do modelo.
+
+1. $E[F_{m,1}] = 0$. Isso implica basicamente que E[$F_j$] = 0 para qualquer j, isto é, todos os fatores têm média igual a zero.
+
+2. $Var[F_{m,a}] = I_{m,n}$. Isso implica que todos os fatores são não correlacionados (por isso, ortogonais).
+
+3. $E(\epsilon_{p,1})$ = 0. Implica que E(e) = 0, ou seja, todos os erros têm média iguais a zero.
+
+4. $Var(\epsilon_{p,1})$ é uma matriz diagona que possui em sua posição j o valor $Var(\epsilon_{j} = \Psi_j)$, tal que $Cov(\epsilon_{i}$,$\epsilon_{j})$ =0, $\forall$ i$\ne$ j.
+
+5. Os vetores $\epsilon_{p,1}$ e $F_{m,1}$ são independentes. Portanto, $Cov(\epsilon_{p,1}, F_{m,1})  = E(\epsilon F') = 0$.
+
+A suposição (5) implica dizer que os vetores e e F representam duas fontes de erros disntintas, independentes, contudo relacionadas com a variável padronizada Z. São fontes de informação diferentes. As suposições (1 a 4) garantem a ortogonalidade dos `m`fatores estimados. 
+
+A consequência das suposições 1 a 5 é com a estrutura de correlação teórica $P_{p,p}$. Quando o modelo ortogonal é assumido, a matriz $P_{p,p}$ pode ser reparametrizada assim:
+
+$$Var(Z) = P_{p,p} = L L' + \Psi$$
+
+Esse resultado decorre de aplicação direta da variância em cima do modelo, veja:
+
+$$ 
+P_{p,p} = Var(Z) = Var(L F + \epsilon) = L F + \Psi \Rightarrow \\
+Var(Z) = Var(L F) + Var(\epsilon) = L Var(F) L' + \Psi \Rightarrow \\
+Var(Z) = L I L' + \Psi = L L' + \Psi
+$$
+
+Perceba que $Var(F) = I$ decorre da suposição (2).
+
+Assim, o objetivo é estimar as matrizes $L$ e $\Psi$ que possam representar a matriz $P$ para um dado valor de m (menor que p). 
+
+Infelizmente, existem muitas matrizes de correlação $P$ passíveis de decomposição na forma $L L' + \Psi$ para um valor de `m` muito menor que `p`.
+
+Podemos representar essa matriz da seguinte maneira:
+
+$$
+P_{pxp} = 
+\begin{bmatrix}
+\sum_{j=1}^{m} l_{1j}^2 & \sum_{j=1}^{m} l_{1j}l_{j2} & ...& \sum_{j=1}^{m} l_{1j}l_{jp} \\
+\sum_{j=1}^{m} l_{2j}l_{j1} & \sum_{j=1}^{m} l_{2j}^2 & ... & \sum_{j=1}^{m} l_{2j}l_{jp} \\
+...    &  ...   &...  & ...    \\
+\sum_{j=1}^{m} l_{pj}l_{j1} & \sum_{j=1}^{m} l_{pj}l_{j2} & ... & \sum_{j=1}^{m} l_{pj}^2 
+\end{bmatrix}  = 
+\begin{bmatrix}
+\Psi_1 & 0 & ... & 0 \\
+0 & \Psi_2 & ... & 0 \\
+...    &  ...   &...  & ...    \\
+0 & 0 & ... & \Psi_p 
+\end{bmatrix}
+$$
+A decomposição é apresentada a seguir:
+
+$Var(Z_i) = l_{i1} + l_{i2} + ... + l_{im} + \Psi_i  = h_i^2 + \Psi_i$ tal que, $h_i^2 = l_{i1} + l_{i2} + ... + l_{im}$, para i = 1,2,..., p.
+
+Podemos fazer a seguinte leitura a partir das decomposições:
+
+a. A variância de $Z_i$ e decompostas em duas partes. A primeira denotada por $h_i^2$ que é a variabilidade de Zi explicada pelos m fatores selecionados no modelo fatorial. Essa parte da variabilidade é chamada de 'comunalidades"
+
+b. A segunda denotada pelo \Psi é a parte da variabilidade de $Z_i$ associada apenas ao erro aleatório \epsilon, que é específico de vacada variável $Z_i$. Essa parte da variabilidade é chamada de unicidade ou variância específica. 
+
+Como as variáveis $Z_i$ têm variâncias iguais a 1, segue que $h_i^2 + \Psi = 1$.
+
+Pode-se buscar a matriz L para o entendimentos dos Fatores ($F_j$). Por isso, o primeiro passo é estimar a quantidade de fatores e só então estimamos a matriz F. 
+
+A proporção explicada pelo fator ($F_j$) é dada por:
+
+$$
+PEF_j = \frac{\sum_{i=1}^{p} l_{ij}^2}{p}
+$$
+
+Sendo que os fatores representativos no modelo são aqueles com maiores valores.
+
+#### Estimação dos m fatores
+
+Basicamente, o que se é estimar o número de fatores `m`ideal. Há 3 critérios possíveis:
+
+1. Análise da proporção da variância total relacionada a cada autovalor $\lambda_i$. Permanecem aqueles que representam maiores proporções da variância total.
+
+2. O valor de `m` será igual ao número de autovalores $\lambda_i$ maiores ou iguais a 1. Esse critério é foi proposto por Kaiser (1958);
+
+3. Ponto de salto no scree-plot. Seria verificar onde ocorreu uma diferença significativa entre um autovalor e o próximo. Esse critério é equivalente ao primeiro.
+
+#### Métodos de Estimação dos Fatores via ACP
+
+Aqui iremos focar no método das componentes principais para estimação das matrizes Lpxm e Fpxp.
+
+O método de estimação dos fatores pelas componentes principais utiliza-se dos autovalores ($\hat{\lambda_i}$) e dos autovetores normalizados ($\hat{e_i}$).
+
+As matrizes $L_{pm}$ e $\Psi_{pp}$ serão estimadas respectivamente por:
+
+a. $\hat{L_{pm}} = [\sqrt(\hat{\lambda_1})\hat{e1} + \sqrt(\hat{\lambda_2})\hat{e2} + ... + \sqrt(\hat{\lambda_m})\hat{em}]$
+
+Ou seja, a partir dos autovetores e autovalores obtidos na ACP, conseguimos formar a matriz de loadings (cargas fatoriais) da AFE.
+
+b. $\Psi_{pp} = diag(R_{pp} - \hat{L}_{pm} \hat{L}_{mp})'$
+
+A matriz $\Psi$ será a matriz diagonal dos elementos da matriz ($R - L L'$).
+
+A ideia básica é utiliza o teorema da decomposição espectral à matriz R. Então sua estimativa será:
+
+$R_{p,p} = \sum_{i=1}^{p} \hat{\lambda_i} \hat{e_i} \hat{e_i}' = \sum_{i=1}^{m} \hat{\lambda_i} \hat{e_i} \hat{e_i}' + \sum_{i=m+1}^{p} \hat{\lambda_i} \hat{e_i} \hat{e_i}'$ 
+
+Assim, uma aproximação para a matriz $L L'$ é:
+
+$LL' = \sum_{i=1}^{m} \hat{\lambda_i} \hat{e_i} \hat{e_i}' = [\sqrt(\hat{\lambda_1})\hat{e_1} + \sqrt(\hat{\lambda_2})\hat{e_2} + ... + \sqrt(\hat{\lambda_m})\hat{e_m}][\sqrt(\hat{\lambda_1})\hat{e_1} + \sqrt(\hat{\lambda_2})\hat{e_2} + ... + \sqrt(\hat{\lambda_m})\hat{e_m}]'$
+
+Dessa forma, para construir a matriz $\Psi_{p,p}$, podemos considerar:
+
+$\sum_{i=m+1}^{p} \hat{\lambda_i} \hat{e_i} \hat{e_i}' = R_{p,p}-L_{p,m} L_{m,p}$
+
+Considerando que essa matriz não é diagonal, consideramos usar apenas a diagonal dessa matriz como estimativa. Dessa forma, a matriz residual será dada por:
+
+$MRES = R - (\hat{L}\hat{L}' + \Psi)$
+
+Depois de toda essa matemática quais são os passos para estimar os parâmetros de um AFE através de ACP?
+
+1. Rodar ACP nos dados;
+2. Estimar o número `m` de fatores;
+3. Usar o desvio padrão dos autovalores multiplicado por seus respetivos autovetores normalizados. Assim obtêm a matriz de cargas fatorias ou loadings;
+
+
+## Usando pacote pysch
+
+```{r}
+# Rodar Analise Fatorial
+afe <- psych::principal(df, rotate = 'none', nfactors = 2, covar = TRUE); afe
+
+```
+
+## Comparações
+
+
+### Análise Fatorial
+
+Loadings
+```{r}
+# Comparação
+afe$loadings
+```
+
+Comuninalidade:
+```{r}
+afe$communality
+```
+
+Residuos
+```{r}
+round(afe$residual,3)
+```
+
+
+### Resultado ACP
+
+Loadings:
+```{r}
+round(L.hat,2)
+```
+
+A variância dos fatores
+```{r}
+round(var.manual,2)
+```
+
+As comunalidades
+```{r}
+round(h2, 2)
+```
+
+Resíduos
+```{r}
+round(MRES,3)
+```
+
+### Interpretação dos fatores
+
+O propósito de uma rotação é produzir fatores com uma mistura de cargas altas e baixas e poucas cargas de tamanho moderado. A ideia é dar sentido aos fatores, o que ajuda a interpretá-los. Do ponto de vista matemático, não há diferença entre uma matriz girada e não girada. O modelo ajustado é o mesmo, as unicidades são as mesmas e a proporção de variância explicada é a mesma.
+
+Vamos ajustar três modelos de fatores, um sem rotação, um com rotação varimax e outro com rotação promax, e fazer um gráfico de dispersão do primeiro e do segundo carregamentos.
+
+```{r}
+fa.none <- psych::fa(df, nfactors = 2, rotate = "none")
+fa.varimax <- psych::fa(df, nfactors = 2, rotate = "varimax")
+fa.promax <- psych::fa(df, nfactors = 2, rotate = "promax")
+
+par(mfrow = c(1,3))
+plot(fa.none$loadings[,1], 
+     fa.none$loadings[,2],
+     xlab = "Factor 1", 
+     ylab = "Factor 2", 
+     ylim = c(-1,1),
+     xlim = c(-1,1),
+     main = "No rotation")
+abline(h = 0, v = 0)
+
+plot(fa.varimax$loadings[,1], 
+     fa.varimax$loadings[,2],
+     xlab = "Factor 1", 
+     ylab = "Factor 2", 
+     ylim = c(-1,1),
+     xlim = c(-1,1),
+     main = "Varimax rotation")
+
+text(fa.varimax$loadings[,1]-0.08, 
+     fa.varimax$loadings[,2]+0.08,
+     colnames(df),
+     col="blue")
+abline(h = 0, v = 0)
+
+plot(fa.promax$loadings[,1], 
+     fa.promax$loadings[,2],
+     xlab = "Factor 1", 
+     ylab = "Factor 2",
+     ylim = c(-1,1),
+     xlim = c(-1,1),
+     main = "Promax rotation")
+abline(h = 0, v = 0)
+```
+
+
+
+## Referência
+
+
+* <http://www.sthda.com/english/wiki/wiki.php?id_contents=7866>
+* <https://www.statology.org/principal-components-analysis-in-r/>
+* <https://users.dickinson.edu/~richesod/latex/latexcheatsheet.pdf>
+* <http://ftp.demec.ufpr.br/disciplinas/TM788/Daniel%20Furtado%20Ferreira/Capitulo%203.pdf>
+* <http://www.de.ufpb.br/~ulisses/disciplinas/notasdeaula-anamult.pdf>
+* <https://willstenico.medium.com/puffindex-criando-um-ranking-de-a%C3%A7%C3%B5es-brasileiras-utilizando-pca-analise-de-componentes-2715f2ffc46a>
+* <https://scentellegher.github.io/machine-learning/2020/01/27/pca-loadings-sklearn.html>
+* <https://aaronschlegel.me/factor-analysis-principal-component-method-r.html>
+* <https://rpubs.com/aaronsc32/factor-analysis-part-two>
+* <https://www.geo.fu-berlin.de/en/v/soga/Geodata-analysis/factor-analysis/A-simple-example-of-FA/index.html>
+* <https://hackmd.io/@euler/BkEBMmO_X>
+

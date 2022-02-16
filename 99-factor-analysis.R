@@ -1,0 +1,330 @@
+# Load the psych package ----------------------------------------
+require(tidyverse)
+require(psych)
+
+# Download data -------------------------------------------------
+link = 'https://assets.datacamp.com/production/repositories/2136/datasets/869615371e66021e97829feb7e19e38037ed0c14/GCBS_data.rds'
+source('01-funcoes/f_importar_rds.R')
+gcbs <- importar_rds(link)
+
+
+# Conduct a single-factor EFA -----------------------------------
+#...............................................................#
+#............... Begin of the code             .................#
+#...............................................................#
+
+# Let's begin by using the psych package and conducting a single-factor explanatory factor analysis (EFA). The fa() function conducts an EFA on your data. When you're using this in the real world, be sure to use a dataset that only contains item responses - other types of data will cause errors and/or incorrect results. In the gcbs dataset, these are examinees' responses to 15 items from the Generic Conspiracist Beliefs Scale, which is designed to measure conspiracist beliefs.
+
+# An EFA provides information on each item's relationship to a single factor hypothesized to be represented by each of the items. EFA results give you basic information about how well items relate to that hypothesized construct.
+
+EFA_model <- fa(gcbs)
+
+# View the results
+EFA_model
+
+# Question: why only one factor? Is defaut?
+
+# View the factor loadings
+EFA_model$loadings
+
+# Create a path diagram of the items' factor loadings
+fa.diagram(EFA_model)
+
+
+# Take a look at the first few lines of the response data and their corresponding sum scores
+head(gcbs)
+rowSums(head(gcbs))
+
+# Then look at the first few lines of individuals' factor scores
+head(EFA_model$scores)
+
+# To get a feel for how the factor scores are distributed, look at their summary statistics and density plot.
+summary(EFA_model$scores)
+
+plot(density(EFA_model$scores, 
+             na.rm = TRUE), 
+     main = "Factor Scores")
+
+# dev.off()
+# par("mar")
+# graphics.off()
+
+#...............................................................#
+# Process of delevepment
+
+# 1. Develop items for your measure
+# 2. Collect pilot data from a representative sample
+# 3. Check out what dataset looks like
+# 3.1 -- Inspect your dataset
+# 4. Considere whether you want to use an explanatory analysis (EFA) or a confirmatory (CFA) or still both;
+# 5. If both, split your sample into random partes, see:
+
+
+# Splitting your dataset
+
+# During the measure development process, it's important to conduct EFA and CFA on separate datasets because using the same dataset can lead to inflated model fit statistics. Instead, you can split your dataset in half, then use one half for the EFA and the other half for the CFA.
+
+N <-  nrow(gcbs)
+indices <-  seq(1, N)
+indices_EFA <- sample(indices, floor(0.5*N))
+indices_CFA <- indices[!(indices %in% indices_EFA)]
+
+gcbs_EFA <- gcbs[indices_EFA,]
+gcbs_CFA <- gcbs[indices_CFA,]
+
+# 6. Compare the two  samples to make sure they are similar
+#...............................................................#
+
+# Basic descriptive statistics ---------------------------------
+describe(gcbs)
+
+# Graphical representation of error
+error.dots((gcbs))
+
+# Graphical representation of error
+error.bars(gcbs)
+
+
+# Establish two sets of indices to split the dataset
+N <- nrow(gcbs)
+indices <- seq(1, N)
+indices_EFA <- sample(indices, floor((.5*N)))
+indices_CFA <- indices[!(indices %in% indices_EFA)]
+
+# Use those indices to split the dataset into halves for your EFA and CFA
+gcbs_EFA <- gcbs[indices_EFA, ]
+gcbs_CFA <- gcbs[indices_CFA, ]
+
+# Precisam ter a quantidade igual de dados (diferença máxima de 1)
+gcbs_EFA %>% nrow()
+gcbs_CFA %>% nrow()
+
+# Use the indices from the previous exercise to create a grouping variable
+group_var <- vector("numeric", nrow(gcbs))
+group_var[indices_EFA] <- 1
+group_var[indices_CFA] <- 2
+
+# Bind that grouping variable onto the gcbs dataset
+gcbs_grouped <- cbind(gcbs, group_var)
+
+head(gcbs_grouped)
+
+# Compare stats across groups
+
+#...............................................................#
+# A word of warning: while the group argument of describeBy() has to be a vector, the group argument of statsBy() has to be the name of a column in your dataframe. Plan accordingly!
+#...............................................................#
+
+desc_by_group <- describeBy(gcbs_grouped, group = group_var)
+stats_by_group <- statsBy(gcbs_grouped, group = 'group_var')
+
+formattable::formattable(desc_by_group$'1')
+# DT::datatable(desc_by_group$'1') -> conversar com Ariane
+
+# Correlation -------------------------------------------------
+# Conduct a single-factor EFA -----------------------------------
+#...............................................................#
+# One of the easiest ways to get a feel for your dataset is to examine the relationships of your variables with each other. While base R has the cor() function, the psych package has the lowerCor() function, which only displays the lower triangle of the correlation matrix for easier viewing and interpretation.
+#...............................................................#
+
+# Viewing and testing correlations
+# View the lower triangle of the correlation matrix.
+
+lowerCor(gcbs)
+
+knitr::kable(round(lowerCor(gcbs),2))
+
+# Another kind of Matrix ................................
+# Find the correlation
+rho_gcbs <- cor(gcbs)
+
+# Reorder the correlation matrix
+# reorder_cormat <- function(cormat){
+#   # Use correlation between variables as distance
+#   dd <- as.dist((1-cormat)/2)
+#   hc <- hclust(dd)
+#   cormat <-cormat[hc$order, hc$order]
+# }
+
+# rho_gcbs_reorder <- reorder_cormat(rho_gcbs)
+
+# Incluir NA na parte de baixo do correlação
+
+# Get lower triangle of the correlation matrix
+get_lower_tri<-function(cormat){
+  cormat[upper.tri(cormat)] <- NA
+  return(cormat)
+}
+# Get upper triangle of the correlation matrix
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
+}
+
+rho_gcbs_upper <- get_upper_tri(rho_gcbs)
+
+# Melt the correlation matrix
+melted_rho <- reshape2::melt(rho_gcbs_upper, na.rm = TRUE)
+
+# Alterações no tema
+alterar_resto_thema <-
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.ticks = element_blank(),
+    legend.justification = c(1, 0),
+    legend.position = c(0.6, 0.7),
+    legend.direction = "horizontal")
+  #+ guides(fill = guide_colorbar(barwidth = 7, 
+  #                             barheight = 1,
+  #                             title.position = "top", 
+  #                             title.hjust = 0.5))
+
+
+# Heatmap
+ggplot(data = melted_rho, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "red", high = "blue", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Matriz\nCorrelation") +
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed() + 
+  geom_text(aes(Var2, Var1, label = round(x = value, digits = 3)), color = "black", size = 3) + 
+  alterar_resto_thema
+
+
+#Usando GGally:
+# ggally_graf <- GGally::ggpairs(gcbs, title="Correlogram with ggpairs()") 
+
+
+
+# Test for corr - p-values
+# Check out the p-values created when calculating correlations. Significant values mean items are meaningfully correlated.
+corr.test(gcbs, use = 'pairwise.complete.obs')$p
+
+# data set has more than 2000 observations. The statistical significance is affected by sample size.
+
+# Test for corr - confidente interval
+# View the confidence intervals created when calculating correlations.
+corr.test(gcbs, use = 'pairwise.complete.obs')$ci
+
+# Internal reliability -----------------------------------------
+#...............................................................#
+# You know how to examine how individual items perform in your measure, but what about how well those items relate to each other - the overall internal reliability of a measure? Coefficient alpha (also called Cronbach's alpha) and split-half reliability are two common ways of assessing reliability. These statistics are a function of the measure length and items' interrelatedness, which you just investigated by looking at the correlation matrix.
+
+# In reliability values greater than 0.8 are desired, though some fields of study have higher or lower guidelines.
+#...............................................................#
+
+# Alpha de Cronback - Verifica a consistência da sua medida. Alpha deve estar acima de 0.8
+# O que seria medida? um item ou todos eles juntos?
+
+alpha(x = gcbs)
+
+splitHalf(gcbs)
+
+# Conduct a multidimensional-factor EFA ------------------------
+
+# We you use the strategy method of split data in previously section.
+
+# Establish two sets of indices to split the dataset
+N <-  nrow(bfi)
+indices <-  seq(1, N)
+indices_EFA <- sample(indices, floor(0.5*N))
+indices_CFA <- indices[!(indices %in% indices_EFA)]
+
+# Use those indices to split the dataset into halves for your EFA and CFA
+bfi_EFA <- bfi[indices_EFA, ]
+bfi_CFA <- bfi[indices_CFA, ]
+
+# Calculating eigenvalues
+
+#...............................................................#
+# To empirically determine the dimensionality of your data, a common strategy is to examine the eigenvalues. Eigenvalues are numeric representations of the amount of variance explained by each factor or component. Eigenvalues are calculated from a correlation matrix, so you'll need to use cor() to calculate and store the dataset's correlation matrix before calculating eigenvalues. You'll need to specify that you want to use pairwise complete observations. The default is to use everything, but if your dataset has any missing values, this will leave you with a matrix full of NAs.
+
+# You'll do these calculations on the bfi_EFA dataset you just created - remember, you're saving the data in bfi_CFA for your confirmatory analysis!
+#...............................................................#
+
+
+# Calculate the correlation matrix first
+bfi_EFA_cor <- cor(bfi_EFA, use = 'pairwise.complete.obs')
+
+# Then use that correlation matrix to calculate eigenvalues
+eigenvals <- eigen(bfi_EFA_cor)
+names(eigenvals)
+
+# Look at the eigenvalues returned
+eigenvals$values
+
+# Creating a scree plot - representation of eigenvalues #
+#...............................................................#
+#  Eigenvalues can be generated from a principal component analysis or a factor analysis, and the scree() function calculates and plots both by default. Since eigen() finds eigenvalues via principal components analysis, we will use factors = FALSE so our scree plot will only display the values corresponding to those results.
+#...............................................................#
+
+# Calculate the correlation matrix first 
+bfi_EFA_cor <- cor(bfi_EFA, use = 'pairwise.complete.obs')
+
+# Then use that correlation matrix to create the scree plot
+scree(bfi_EFA_cor, factors = FALSE)
+
+# See the difference to factor = TRUE
+# Then use that correlation matrix to create the scree plot
+scree(bfi_EFA_cor, factors = TRUE)
+
+
+# A commonly used criterion for selecting the optimal number of factors is to only consider factors with eigenvalues greater than 1. scree() includes a solid horizontal line at 1 on the y-axis to help you quickly interpret your results. Run the code below to recreate the scree plot from the bfi_EFA data you created in the previous exercise. Based on the results, how many factors are recommended?
+
+# R: 6 factors
+
+# Understanding multidimensional data --------------------------
+
+# Construct: an attribute of interesting
+# Each factor correspond to one construct
+
+# Now that you've examined the eigenvalues and scree plot to find the data-driven recommended number of factors, you can get down to actually running the multidimensional EFA. In Chapter 1, you ran a unidimensional EFA by using the fa() function. To run a multidimensional EFA, you'll want to use the nfactors argument to specify the number of factors desired.
+
+# Run the EFA with six factors (as indicated by your scree plot)
+EFA_model <- fa(bfi_EFA, nfactors = 6)
+
+# View results from the model object
+EFA_model
+
+
+# Interpreting the results
+
+# As before, you'll be interested in items' factor loadings and individuals' factor scores. These will be interpreted in the same way, but since your EFA is multidimensional, you’ll get results for each factor.
+
+# Remember, an item's loadings represent the amount of information it provides for each factor. Items’ meaningful loadings will be displayed in the output. You’ll notice that many items load onto more than one factor, which means they provide information about multiple factors. This may not be desirable for measure development, so some researchers consider only the strongest loading for each item.
+
+# See all the results genereted by fa(.)
+names(EFA_model)
+
+# View items' factor loadings
+EFA_model$loadings
+
+# View the first few lines of examinees' factor scores
+head(EFA_model$scores)
+
+
+# Model Fit ------------------------------------------
+
+# Selecting the best model
+
+# Now use your knowledge of finding and interpreting absolute and relative model fit statistics to select the best model for your data. When I introduced this dataset I said that the items were theorized to load onto five factors, but you may have noticed that your scree plot indicated six factors. You might be wondering which you should trust. Not to worry - you can use fit statistics to make am empirical decision about how many factors to use.
+
+# First, you'll use the bfi_EFA dataset to run EFAs with each of the hypothesized number of factors. Then, you can look at the BIC, which is a relative fit statistic, to compare models. Remember, the lowest BIC is preferred!
+
+# Run each theorized EFA on your dataset
+bfi_theory <- fa(bfi_EFA, nfactors = 5)
+bfi_eigen <- fa(bfi_EFA, nfactors = 6)
+
+
+# Compare the BIC values
+bfi_theory$BIC
+bfi_eigen$BIC
+
+# Onde parei: https://campus.datacamp.com/courses/factor-analysis-in-r/confirmatory-factor-analysis?ex=1
